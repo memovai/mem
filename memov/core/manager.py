@@ -150,7 +150,7 @@ class MemovManager:
 
             # Commit to the bare repo
             commit_msg = "Create snapshot\n\n"
-            commit_msg += "Prompt: {prompt}\nResponse: {response}\nSource: {'User' if by_user else 'AI'}"
+            commit_msg += f"Prompt: {prompt}\nResponse: {response}\nSource: {'User' if by_user else 'AI'}"
             commit_file_paths = {}
             for rel_path, abs_path in zip(tracked_file_rel_paths, tracked_file_abs_paths):
                 commit_file_paths[rel_path] = abs_path
@@ -284,9 +284,11 @@ class MemovManager:
             for name, commit_hash in branches["branches"].items():
                 commit_to_branch[commit_hash].append(name)
 
-            # Print the header
-            logging.info(f"{'Branch'.ljust(20)} {'Commit'.ljust(8)} {'Prompt'.ljust(15)} {'Resp'.ljust(15)}")
-            logging.info("-" * 60)
+            # Print the header with new format including Operation column
+            logging.info(
+                f"{'Operation'.ljust(10)} {'Branch'.ljust(20)} {'Commit'.ljust(8)} {'Prompt'.ljust(15)} {'Resp'.ljust(15)}"
+            )
+            logging.info("-" * 70)
 
             # Get commit history for each branch and print the details
             seen = set()
@@ -298,22 +300,40 @@ class MemovManager:
                         continue
                     seen.add(hash_id)
 
-                    # Get the prompt and response from the commit message
-                    prompt = response = ""
+                    # Get the commit message and extract operation type
                     message = GitManager.get_commit_message(self.bare_repo_path, hash_id)
+                    operation_type = self._extract_operation_type(message)
+
+                    # Get prompt and response from commit message first
+                    prompt = response = ""
                     for line in message.splitlines():
                         if line.startswith("Prompt:"):
                             prompt = line[len("Prompt:") :].strip()
                         elif line.startswith("Response:"):
                             response = line[len("Response:") :].strip()
 
+                    # Check if there's a git note for this commit (priority over commit message)
+                    note_content = GitManager.get_commit_note(self.bare_repo_path, hash_id)
+                    if note_content:
+                        # Parse the note content for updated prompt/response
+                        for line in note_content.splitlines():
+                            if line.startswith("Prompt:"):
+                                prompt = line[len("Prompt:") :].strip()
+                            elif line.startswith("Response:"):
+                                response = line[len("Response:") :].strip()
+
                     # Get the branch marker and format the output
                     marker = "*" if hash_id == head_commit else " "
                     branch_names = ",".join(commit_to_branch.get(hash_id, []))
                     branch_str = f"[{branch_names}]" if branch_names else ""
                     hash7 = hash_id[:7]
+
+                    # Format prompt and response, handle None values
+                    prompt_display = short_msg(prompt) if prompt and prompt != "None" else "None"
+                    response_display = short_msg(response) if response and response != "None" else "None"
+
                     logging.info(
-                        f"{marker} {branch_str.ljust(18)} {hash7.ljust(8)} {short_msg(prompt).ljust(15)} {short_msg(response).ljust(15)}"
+                        f"{operation_type.ljust(10)} {marker} {branch_str.ljust(18)} {hash7.ljust(8)} {prompt_display.ljust(15)} {response_display.ljust(15)}"
                     )
         except Exception as e:
             LOGGER.error(f"Error showing history in memov repo: {e}")
@@ -576,3 +596,21 @@ class MemovManager:
         # Update the branches config file and the HEAD reference
         self._save_branches(branches)
         GitManager.update_ref(self.bare_repo_path, "refs/memov/HEAD", new_commit)
+
+    def _extract_operation_type(self, commit_message: str) -> str:
+        """Extract operation type from commit message first line."""
+        if not commit_message:
+            return "unknown"
+
+        first_line = commit_message.splitlines()[0].lower()
+
+        if "track" in first_line:
+            return "track"
+        elif "snapshot" in first_line or "snap" in first_line:
+            return "snap"
+        elif "rename" in first_line:
+            return "rename"
+        elif "remove" in first_line:
+            return "remove"
+        else:
+            return "unknown"
