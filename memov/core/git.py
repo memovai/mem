@@ -230,3 +230,18 @@ class GitManager:
             LOGGER.error(f"Failed to add git note for {commit_hash}: {output.stderr}")
             return False, output.stderr
         return True, ""
+
+    @staticmethod
+    def get_commit_note(repo_path: str, commit_hash: str) -> str:
+        """
+        Get the git note for a specific commit.
+        Returns the note content as a string, or empty string if no note exists.
+        """
+        command = ["git", f"--git-dir={repo_path}", "notes", "show", commit_hash]
+        success, output = subprocess_call(command=command)
+
+        if success and output.stdout:
+            return output.stdout.strip()
+        else:
+            # No note exists for this commit, which is normal
+            return ""
