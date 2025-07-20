@@ -160,6 +160,19 @@ def parse_args() -> argparse.Namespace:
         "-u", "--by_user", action="store_true", help="Indicate the source is user (default: AI)"
     )
 
+    # Export
+    export_parser = subparsers.add_parser("export", help="Export memov history to trace.json")
+    export_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
+    export_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="Output file path (default: trace.json in project root)",
+    )
+
     subparsers = {
         "init": init_parser,
         "track": track_parser,
@@ -171,6 +184,7 @@ def parse_args() -> argparse.Namespace:
         "jump": jump_parser,
         "status": status_parser,
         "amend": amend_parser,
+        "export": export_parser,
     }
 
     args = parser.parse_args()
@@ -236,6 +250,8 @@ def handle_command() -> None:
         manager.status()
     elif command == "amend":
         manager.amend_commit_message(args.commit_hash, args.prompt, args.response, args.by_user)
+    elif command == "export":
+        manager.export_trace(args.output)
     else:
         raise ValueError(f"Unknown command: {command}")
 
