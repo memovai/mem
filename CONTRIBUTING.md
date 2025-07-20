@@ -5,7 +5,7 @@ Thank you for your interest in contributing to Memov! We welcome all kinds of co
 ## How to Contribute
 
 ### 1. Reporting Issues
-- Search [existing issues](https://github.com/yourusername/memov/issues) before opening a new one.
+- Search [existing issues](https://github.com/memovai/mem/issues) before opening a new one.
 - Provide a clear, descriptive title and as much relevant information as possible (steps to reproduce, logs, screenshots, etc).
 
 ### 2. Requesting Features
