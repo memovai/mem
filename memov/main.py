@@ -16,17 +16,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("-h", "--help", action="store_true", help="Show help message")
 
-    parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Init
     init_parser = subparsers.add_parser("init", help="Initialize memov and git repository")
+    init_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
 
     # Track
     track_parser = subparsers.add_parser("track", help="Track files in the project directory")
+    track_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
     track_parser.add_argument(
         "file_paths", type=str, nargs="*", help="List of file path to track (optional, default: all files)"
     )
@@ -53,6 +55,9 @@ def parse_args() -> argparse.Namespace:
     # Snapshot
     snap_parser = subparsers.add_parser("snap", help="Create a snapshot with auto-generated ID")
     snap_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
+    snap_parser.add_argument(
         "-p", "--prompt", type=str, default=None, required=False, help="Prompt for the snapshot (required)"
     )
     snap_parser.add_argument(
@@ -64,6 +69,9 @@ def parse_args() -> argparse.Namespace:
 
     # Rename
     rename_parser = subparsers.add_parser("rename", help="Rename the files")
+    rename_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
     rename_parser.add_argument("old_path", type=str, help="Old path of the file (required)")
     rename_parser.add_argument("new_path", type=str, help="New path of the file (required)")
     rename_parser.add_argument(
@@ -88,6 +96,9 @@ def parse_args() -> argparse.Namespace:
 
     # Remove
     remove_parser = subparsers.add_parser("remove", help="Remove the files")
+    remove_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
     remove_parser.add_argument("file_path", type=str, help="Path of the file to remove (required)")
     remove_parser.add_argument(
         "-p",
@@ -111,22 +122,37 @@ def parse_args() -> argparse.Namespace:
 
     # History
     history_parser = subparsers.add_parser("history", help="Show history of snapshots")
+    history_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
 
     # Show
     show_parser = subparsers.add_parser("show", help="Show details of a specific snapshot")
+    show_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
     show_parser.add_argument("prompt_id", type=str, help="ID of the snapshot to show")
 
     # Jump
     jump_parser = subparsers.add_parser("jump", help="Jump to a specific snapshot")
+    jump_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
     jump_parser.add_argument("prompt_id", type=str, help="ID of the snapshot to jump to")
 
     # Status
     status_parser = subparsers.add_parser(
         "status", help="Show status of working directory compared to latest snapshot"
     )
+    status_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
 
     # Amend
     amend_parser = subparsers.add_parser("amend", help="Amend a commit's message with prompt/response")
+    amend_parser.add_argument(
+        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
+    )
     amend_parser.add_argument("commit_hash", type=str, help="Commit hash to amend (required)")
     amend_parser.add_argument("-p", "--prompt", type=str, default=None, help="Prompt to add (optional)")
     amend_parser.add_argument("-r", "--response", type=str, default=None, help="Response to add (optional)")
