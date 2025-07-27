@@ -2,10 +2,10 @@ import io
 import json
 import logging
 import os
-import subprocess
 import sys
 import tarfile
 from collections import defaultdict
+from pathlib import Path
 
 import pathspec
 
@@ -114,7 +114,11 @@ class MemovManager:
             commit_msg += f"Files: {', '.join([rel_file for rel_file, _ in new_files])}\n"
             commit_msg += f"Prompt: {prompt}\nResponse: {response}\nSource: {'User' if by_user else 'AI'}"
 
-            self._commit(commit_msg, all_files)
+            commit_hash = self._commit(commit_msg, all_files)
+            if not commit_hash:
+                LOGGER.error("Failed to commit tracked files.")
+                return
+
             LOGGER.info(
                 f"Tracked file(s) in memov repo and committed: {[abs_path for _, abs_path in new_files]}"
             )
@@ -409,7 +413,7 @@ class MemovManager:
             worktree_files_and_blobs = {}
             for rel_path, abs_path in workspace_files:
                 blob_hash = GitManager.write_blob(self.bare_repo_path, abs_path)
-                worktree_files_and_blobs[rel_path] = blob_hash
+                worktree_files_and_blobs[Path(rel_path).resolve()] = blob_hash
 
             # Compare tracked files with workspace files
             all_files = set(list(tracked_files_and_blobs.keys()) + list(worktree_files_and_blobs.keys()))

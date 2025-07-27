@@ -6,3 +6,11 @@ def short_msg(val: str) -> str:
     if not val:
         return ""
     return val[:15] + ("..." if len(val) > 15 else "")
+
+
+def clean_windows_git_lstree_output(output: str) -> str:
+    """Clean up git ls-tree output for Windows compatibility."""
+    if not isinstance(output, str):
+        raise TypeError(f"Expected str, got {type(output)}")
+
+    return output.strip('"').split("\\r")[0]  # Clean up the file path
