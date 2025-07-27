@@ -5,9 +5,6 @@ import sys
 
 from memov.core.manager import MemovManager
 
-LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments for memov commands"""
@@ -208,13 +205,26 @@ def handle_command() -> None:
 
     # Configure logging
     if not skip_mem_check:
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+
+        # Create a file handler for debug messages
         log_path = os.path.join(args.loc, ".mem", "mem.log")
-        new_file_handler = logging.FileHandler(log_path, mode="a")
-        new_file_handler.setFormatter(
+        file_handler = logging.FileHandler(log_path, mode="a")
+        file_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(levelname)s - %(name)s:%(lineno)s - %(message)s")
         )
-        root_logger = logging.getLogger()
-        root_logger.addHandler(new_file_handler)
+        file_handler.setLevel(logging.DEBUG)
+
+        # Create a console handler for info messages
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(logging.Formatter("%(message)s"))
+        console_handler.setLevel(logging.INFO)
+
+        # Add handlers to the root logger
+        root_logger.handlers.clear()
+        root_logger.addHandler(console_handler)
+        root_logger.addHandler(file_handler)
 
     if command == "init":
         manager.init()

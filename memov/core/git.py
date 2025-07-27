@@ -2,18 +2,29 @@ import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
+
+from memov.utils.string_utils import clean_windows_git_lstree_output
 
 LOGGER = logging.getLogger(__name__)
 
 
-def subprocess_call(command: list[str], input: str = None, text: bool = True) -> bool:
+def subprocess_call(
+    command: list[str], input: str = None, text: bool = True
+) -> tuple[bool, subprocess.CompletedProcess | None]:
     """Run a subprocess command and handle errors."""
     try:
         output = subprocess.run(
-            command, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=text, input=input
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+            input=input,
         )
         return True, output
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        LOGGER.debug(f"Command failed: {' '.join(command)}\nStdout: {e.stdout}\nStderr: {e.stderr}")
         return False, None
 
 
@@ -60,7 +71,7 @@ class GitManager:
             file_rel_paths = []
             file_abs_paths = []
             for rel_file in output.stdout.strip().splitlines():
-                rel_file = rel_file.strip('"').split("\\r")[0]  # Clean up the file path
+                rel_file = clean_windows_git_lstree_output(rel_file)
                 abs_file_path = os.path.join(repo_path, "..", "..", rel_file)
                 file_rel_paths.append(rel_file)
                 file_abs_paths.append(abs_file_path)
@@ -71,9 +82,15 @@ class GitManager:
             LOGGER.error(f"Failed to get files for commit {commit_id} in repository at {repo_path}")
             return [], []
 
+    # TODO: merge this with get_files_by_commit
     @staticmethod
     def get_files_and_blobs_by_commit(repo_path: str, commit_id: str) -> dict[str, str]:
-        """Get the list of files and their blob hashes in a specific commit."""
+        """Get the list of files and their blob hashes in a specific commit.
+
+        Args:
+            repo_path (str): Path to the Git repository.
+            commit_id (str): Commit ID to inspect.
+        """
         command = ["git", f"--git-dir={repo_path}", "ls-tree", "-r", commit_id]
         success, output = subprocess_call(command=command)
 
@@ -84,7 +101,8 @@ class GitManager:
                 if len(parts) == 4:
                     blob_hash = parts[2]
                     rel_file = parts[3]
-                    file_blobs[rel_file] = blob_hash
+                    rel_file = clean_windows_git_lstree_output(rel_file)
+                    file_blobs[Path(rel_file).resolve()] = blob_hash
                 else:
                     LOGGER.warning(f"Unexpected output format: {line}")
 

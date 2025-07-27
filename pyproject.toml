@@ -1,6 +1,6 @@
 [project]
 name = "memov"
-version = "0.0.1"
+version = "0.0.2"
 description = "Vibecoding Version Control"
 authors = [
     {name = "crispyberry",email = "ssslvky@gmail.com"},
