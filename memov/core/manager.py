@@ -460,6 +460,9 @@ class MemovManager:
     def _commit(self, commit_msg: str, file_paths: dict[str, str]) -> str:
         """Commit changes to the memov repo with the given commit message and file paths."""
         try:
+            # Validate and fix branches before committing
+            self._validate_and_fix_branches()
+
             # Write blob to bare repo and get commit hash
             commit_hash = GitManager.write_blob_to_bare_repo(self.bare_repo_path, file_paths, commit_msg)
 
@@ -568,6 +571,34 @@ class MemovManager:
         patterns.append(".mem/")
         return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 
+    def _validate_and_fix_branches(self) -> None:
+        """Validate and fix abnormal states in branches.json"""
+        branches = self._load_branches()
+        if not branches:
+            return
+
+        head_commit = GitManager.get_commit_id_by_ref(self.bare_repo_path, "refs/memov/HEAD", verbose=False)
+
+        fixed = False
+
+        # Fix empty branch commit hashes
+        for name, commit_hash in branches["branches"].items():
+            if not commit_hash:  # Empty string or None
+                if name == "main" and head_commit:
+                    branches["branches"][name] = head_commit
+                    LOGGER.info(f"Fixed empty {name} branch with current HEAD {head_commit}")
+                    fixed = True
+
+        # Ensure current points to a valid branch
+        current = branches.get("current")
+        if current and current not in branches["branches"]:
+            branches["current"] = "main"  # Default back to main
+            LOGGER.warning(f"Fixed invalid current branch, reset to main")
+            fixed = True
+
+        if fixed:
+            self._save_branches(branches)
+
     def _update_branch(self, new_commit: str, reset_current_branch: bool = False) -> None:
         """Automatically create or update a branch in the memov repo based on the new commit."""
         branches = self._load_branches()
@@ -579,23 +610,50 @@ class MemovManager:
             GitManager.update_ref(self.bare_repo_path, "refs/memov/HEAD", new_commit)
             return
 
-        # If reset_current_branch is True, reset the current branch to None
+        # If reset_current_branch is True, save current branch and reset
         if reset_current_branch:
+            current_branch = branches.get("current")
+            if current_branch and current_branch in branches["branches"]:
+                head_commit = GitManager.get_commit_id_by_ref(
+                    self.bare_repo_path, "refs/memov/HEAD", verbose=False
+                )
+                if head_commit:
+                    branches["branches"][current_branch] = head_commit
             branches["current"] = None
-        # Otherwise, update the current branch or create a new one
         else:
             head_commit = GitManager.get_commit_id_by_ref(
                 self.bare_repo_path, "refs/memov/HEAD", verbose=False
             )
-            for name, commit_hash in branches["branches"].items():
-                if head_commit == commit_hash:
-                    branches["branches"][name] = new_commit
-                    branches["current"] = name
-                    break
+
+            # Prioritize using current branch
+            current_branch = branches.get("current")
+            if current_branch and current_branch in branches["branches"]:
+                # If current branch exists, update it directly
+                branches["branches"][current_branch] = new_commit
+                LOGGER.debug(f"Updated current branch {current_branch} to {new_commit}")
             else:
-                new_branch = self._next_develop_branch(branches["branches"])
-                branches["branches"][new_branch] = new_commit
-                branches["current"] = new_branch
+                # If no current branch, try to find matching branch
+                updated = False
+                for name, commit_hash in branches["branches"].items():
+                    if head_commit == commit_hash:
+                        branches["branches"][name] = new_commit
+                        branches["current"] = name
+                        updated = True
+                        LOGGER.debug(f"Found matching branch {name}, updated to {new_commit}")
+                        break
+
+                # Only create new branch when no match is found
+                if not updated:
+                    # Check if it's main branch case (empty or invalid commit hash)
+                    if "main" in branches["branches"] and not branches["branches"]["main"]:
+                        branches["branches"]["main"] = new_commit
+                        branches["current"] = "main"
+                        LOGGER.debug(f"Fixed empty main branch, set to {new_commit}")
+                    else:
+                        new_branch = self._next_develop_branch(branches["branches"])
+                        branches["branches"][new_branch] = new_commit
+                        branches["current"] = new_branch
+                        LOGGER.warning(f"Created new branch {new_branch} for commit {new_commit}")
 
         # Update the branches config file and the HEAD reference
         self._save_branches(branches)
