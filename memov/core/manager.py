@@ -419,7 +419,7 @@ class MemovManager:
                 self.bare_repo_path, head_commit
             )
             workspace_files = self._filter_new_files(
-                [self.project_path], tracked_file_rel_paths=None, exclude_memignore=False
+                [self.project_path], tracked_file_rel_paths=None, exclude_memignore=True
             )
             worktree_files_and_blobs = {}
             for rel_path, abs_path in workspace_files:
