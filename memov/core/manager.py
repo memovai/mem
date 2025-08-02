@@ -261,8 +261,19 @@ class MemovManager:
             commit_msg += f"Prompt: {prompt}\nResponse: {response}\nSource: {'User' if by_user else 'AI'}"
 
             # Commit the removal in the memov repo
-            file_list = self._filter_new_files([self.project_path], tracked_file_rel_paths=None)
-            file_list = {rel_path: abs_path for rel_path, abs_path in file_list}
+            # Get current tracked files and exclude the removed file
+            tracked_file_rel_paths, tracked_file_abs_paths = [], []
+            if head_commit:
+                tracked_file_rel_paths, tracked_file_abs_paths = GitManager.get_files_by_commit(
+                    self.bare_repo_path, head_commit
+                )
+
+            # Build file list excluding the removed file
+            file_list = {}
+            for rel_path, abs_path in zip(tracked_file_rel_paths, tracked_file_abs_paths):
+                if rel_path != target_rel_path and os.path.exists(abs_path):
+                    file_list[rel_path] = abs_path
+
             self._commit(commit_msg, file_list)
 
             LOGGER.info(
