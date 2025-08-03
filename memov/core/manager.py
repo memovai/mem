@@ -526,6 +526,8 @@ class MemovManager:
 
                     if ".mem" in dirs:
                         dirs.remove(".mem")
+                    if ".git" in dirs:
+                        dirs.remove(".git")
 
                     for file in files:
                         rel_file = os.path.relpath(os.path.join(root, file), self.project_path)
@@ -575,8 +577,9 @@ class MemovManager:
         if os.path.exists(self.memignore_path):
             with open(self.memignore_path, "r") as f:
                 patterns = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
-        # Exclude .mem directory by default
+        # Exclude .mem and .git directories by default
         patterns.append(".mem/")
+        patterns.append(".git/")
         return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 
     def _update_branch(self, new_commit: str, reset_current_branch: bool = False) -> None:
