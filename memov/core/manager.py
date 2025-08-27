@@ -2,7 +2,8 @@ import io
 import json
 import logging
 import os
-import sys
+import traceback
+from enum import Enum
 import tarfile
 from collections import defaultdict
 from pathlib import Path
@@ -16,11 +17,20 @@ from memov.utils.string_utils import short_msg
 LOGGER = logging.getLogger(__name__)
 
 
+class MemStatus(Enum):
+    """Mem operation status."""
+
+    SUCCESS = "success"
+    PROJECT_NOT_FOUND = "project_not_found"
+    BARE_REPO_NOT_FOUND = "bare_repo_not_found"
+    FAILED_TO_COMMIT = "failed_to_commit"
+    UNKNOWN_ERROR = "unknown_error"
+
+
 class MemovManager:
-    def __init__(self, project_path: str, only_basic_check: bool = False) -> None:
+    def __init__(self, project_path: str) -> None:
         """Initialize the MemovManager."""
         self.project_path = project_path
-        self.only_basic_check = only_basic_check  # If True, only perform basic checks, like project path
 
         # Memov config paths
         self.mem_root_path = os.path.join(self.project_path, ".mem")
@@ -28,28 +38,28 @@ class MemovManager:
         self.branches_config_path = os.path.join(self.mem_root_path, "branches.json")
         self.memignore_path = os.path.join(self.project_path, ".memignore")
 
-        self.check()
-
-    def check(self) -> None:
+    def check(self, only_basic_check: bool = False) -> MemStatus:
         """Check some basic conditions for the memov repo."""
         # Check project path
         if not os.path.exists(self.project_path):
             LOGGER.error(f"Project path {self.project_path} does not exist.")
-            sys.exit(1)
+            return MemStatus.PROJECT_NOT_FOUND
 
         # If only basic check is required, return early
-        if self.only_basic_check:
+        if only_basic_check:
             LOGGER.debug("Only basic check is required, skipping further checks.")
-            return
+            return MemStatus.SUCCESS
 
         # Check the bare repo
         if not os.path.exists(self.bare_repo_path):
             LOGGER.error(
                 f"Memov bare repo {self.bare_repo_path} does not exist.\nPlease run `mem -h` to see the help message."
             )
-            sys.exit(1)
+            return MemStatus.BARE_REPO_NOT_FOUND
 
-    def init(self) -> None:
+        return MemStatus.SUCCESS
+
+    def init(self) -> MemStatus:
         """Initialize a memov repo if it doesn't exist."""
         try:
             # Initialize .mem directory
@@ -61,9 +71,12 @@ class MemovManager:
             if not os.path.exists(self.memignore_path):
                 with open(self.memignore_path, "w") as f:
                     f.write("# Add files/directories to ignore from memov tracking\n")
-                self.track([".memignore"])
+                self.track([self.memignore_path])
+
+            return MemStatus.SUCCESS
         except Exception as e:
             LOGGER.error(f"Error initializing memov project: {e}")
+            return MemStatus.UNKNOWN_ERROR
 
     def track(
         self,
@@ -71,13 +84,13 @@ class MemovManager:
         prompt: str | None = None,
         response: str | None = None,
         by_user: bool = False,
-    ) -> None:
+    ) -> MemStatus:
         """Track files in the memov repo, generating a commit to record the operation."""
         try:
             # Return early if no file paths are provided
             if not file_paths:
                 LOGGER.error("No files to track.")
-                return
+                return MemStatus.SUCCESS
 
             # Get the head commit of the memov repo
             head_commit = GitManager.get_commit_id_by_ref(
@@ -101,7 +114,7 @@ class MemovManager:
 
             if len(new_files) == 0:
                 LOGGER.warning("No new files to track. All provided files are already tracked or ignored.")
-                return
+                return MemStatus.SUCCESS
 
             # Build tree_entries, including all tracked_files and new files
             all_files = {}
@@ -117,15 +130,22 @@ class MemovManager:
             commit_hash = self._commit(commit_msg, all_files)
             if not commit_hash:
                 LOGGER.error("Failed to commit tracked files.")
-                return
+                return MemStatus.FAILED_TO_COMMIT
 
             LOGGER.info(
                 f"Tracked file(s) in memov repo and committed: {[abs_path for _, abs_path in new_files]}"
             )
-        except Exception as e:
-            LOGGER.error(f"Error tracking files in memov repo: {e}")
 
-    def snapshot(self, prompt: str | None = None, response: str | None = None, by_user: bool = False) -> None:
+            return MemStatus.SUCCESS
+        except Exception as e:
+            tb = traceback.extract_tb(e.__traceback__)
+            filename, lineno, func, code = tb[-1]  # last frame
+            LOGGER.error(f"Error tracking files in memov repo: {e}, {filename}:{lineno} - {code}")
+            return MemStatus.UNKNOWN_ERROR
+
+    def snapshot(
+        self, prompt: str | None = None, response: str | None = None, by_user: bool = False
+    ) -> MemStatus:
         """Create a snapshot of the current project state in the memov repo, generating a commit to record the operation."""
         try:
             # Get all tracked files in the memov repo and their previous blob hashes
@@ -141,7 +161,7 @@ class MemovManager:
             # Return early if no tracked files are found
             if len(tracked_file_rel_paths) == 0:
                 LOGGER.warning("No tracked files to snapshot. Please track files first.")
-                return
+                return MemStatus.SUCCESS
 
             # Filter out new files that are not tracked or should be ignored
             new_files = self._filter_new_files([self.project_path], tracked_file_rel_paths)
@@ -161,8 +181,11 @@ class MemovManager:
 
             self._commit(commit_msg, commit_file_paths)
             LOGGER.info("Snapshot created in memov repo.")
+
+            return MemStatus.SUCCESS
         except Exception as e:
             LOGGER.error(f"Error creating snapshot in memov repo: {e}")
+            return MemStatus.UNKNOWN_ERROR
 
     def rename(
         self,
@@ -399,7 +422,7 @@ class MemovManager:
         except Exception as e:
             LOGGER.error(f"Error showing snapshot {commit_id} in bare repo: {e}")
 
-    def status(self) -> None:
+    def status(self) -> tuple[MemStatus, dict[str, list[Path]]]:
         """Show status of working directory compared to HEAD snapshot, and display current HEAD commit and branch."""
         try:
             # Get the current HEAD commit and branch
@@ -424,22 +447,40 @@ class MemovManager:
             worktree_files_and_blobs = {}
             for rel_path, abs_path in workspace_files:
                 blob_hash = GitManager.write_blob(self.bare_repo_path, abs_path)
-                worktree_files_and_blobs[Path(rel_path).resolve()] = blob_hash
+                worktree_files_and_blobs[Path(abs_path).resolve()] = blob_hash
 
             # Compare tracked files with workspace files
-            all_files = set(list(tracked_files_and_blobs.keys()) + list(worktree_files_and_blobs.keys()))
+            all_files: set[Path] = set(
+                list(tracked_files_and_blobs.keys()) + list(worktree_files_and_blobs.keys())
+            )
 
+            untracked_files = []
+            deleted_files = []
+            modified_files = []
             for f in sorted(all_files):
                 if f not in tracked_files_and_blobs:
+                    untracked_files.append(f)
                     LOGGER.info(f"{Color.RED}Untracked: {f}{Color.RESET}")
                 elif f not in worktree_files_and_blobs:
+                    deleted_files.append(f)
                     LOGGER.info(f"{Color.RED}Deleted:   {f}{Color.RESET}")
                 elif tracked_files_and_blobs[f] != worktree_files_and_blobs[f]:
+                    modified_files.append(f)
                     LOGGER.info(f"{Color.RED}Modified:  {f}{Color.RESET}")
                 else:
                     LOGGER.info(f"{Color.GREEN}Clean:     {f}{Color.RESET}")
+
+            return MemStatus.SUCCESS, {
+                "untracked": untracked_files,
+                "deleted": deleted_files,
+                "modified": modified_files,
+            }
+
         except Exception as e:
-            LOGGER.error(f"Error showing status: {e}")
+            tb = traceback.extract_tb(e.__traceback__)
+            filename, lineno, func, code = tb[-1]  # last frame
+            LOGGER.error(f"Error showing status: {code}, {e}")
+            return MemStatus.UNKNOWN_ERROR, {}
 
     def amend_commit_message(
         self, commit_hash: str, prompt: str | None = None, response: str | None = None, by_user: bool = False

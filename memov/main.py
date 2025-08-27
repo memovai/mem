@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 
-from memov.core.manager import MemovManager
+from memov.core.manager import MemovManager, MemStatus
 
 
 def parse_args() -> argparse.Namespace:
@@ -201,7 +201,9 @@ def handle_command() -> None:
 
     # Skip mem check for init command
     skip_mem_check = command == "init"
-    manager = MemovManager(project_path=args.loc, only_basic_check=skip_mem_check)
+    manager = MemovManager(project_path=args.loc)
+    if manager.check(only_basic_check=skip_mem_check) is not MemStatus.SUCCESS:
+        sys.exit(1)
 
     # Configure logging
     if not skip_mem_check:
