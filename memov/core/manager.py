@@ -143,7 +143,9 @@ class MemovManager:
             LOGGER.error(f"Error tracking files in memov repo: {e}, {filename}:{lineno} - {code}")
             return MemStatus.UNKNOWN_ERROR
 
-    def snapshot(self, prompt: str | None = None, response: str | None = None, by_user: bool = False) -> MemStatus:
+    def snapshot(
+        self, prompt: str | None = None, response: str | None = None, by_user: bool = False
+    ) -> MemStatus:
         """Create a snapshot of the current project state in the memov repo, generating a commit to record the operation."""
         try:
             # Get all tracked files in the memov repo and their previous blob hashes
