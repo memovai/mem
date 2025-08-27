@@ -10,6 +10,7 @@ from pathlib import Path
 import pathspec
 
 from memov.core.git import GitManager
+from memov.core.trace import TraceExporter
 from memov.utils.print_utils import Color
 from memov.utils.string_utils import short_msg
 
@@ -467,6 +468,15 @@ class MemovManager:
                 LOGGER.error(f"Failed to add note to commit {commit_hash}: {error_msg}")
         except Exception as e:
             LOGGER.error(f"Error adding note to commit: {e}")
+
+    def export_trace(self, output_path: str | None = None) -> None:
+        """Export memov history to trace.json format"""
+        try:
+            exporter = TraceExporter(self.project_path)
+            result_path = exporter.export_trace(output_path)
+            LOGGER.info(f"Trace exported to: {result_path}")
+        except Exception as e:
+            LOGGER.error(f"Error exporting trace: {e}")
 
     def _commit(self, commit_msg: str, file_paths: dict[str, str]) -> str:
         """Commit changes to the memov repo with the given commit message and file paths."""

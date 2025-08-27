@@ -181,6 +181,18 @@ class GitManager:
             sys.stderr.write(output.stderr)
 
     @staticmethod
+    def get_commit_diff(bare_repo: str, commit_id: str) -> str:
+        """Get the diff content of a specific commit in the memov bare repo."""
+        command = ["git", f"--git-dir={bare_repo}", "show", commit_id]
+        success, output = subprocess_call(command=command)
+
+        if success and output.stdout:
+            return output.stdout
+        else:
+            LOGGER.error(f"Failed to get diff for commit {commit_id} in repository at {bare_repo}")
+            return ""
+
+    @staticmethod
     def get_commit_history(bare_repo: str, tip: str) -> list[str]:
         """Return a list of commit hashes from the given tip in chronological order.
 
@@ -262,4 +274,28 @@ class GitManager:
             return output.stdout.strip()
         else:
             # No note exists for this commit, which is normal
+            return ""
+
+    @staticmethod
+    def get_commit_parent(repo_path: str, commit_hash: str) -> str:
+        """Get the parent commit hash of a specific commit."""
+        command = ["git", f"--git-dir={repo_path}", "log", "-1", "--format=%P", commit_hash]
+        success, output = subprocess_call(command=command)
+
+        if success and output.stdout:
+            return output.stdout.strip()
+        else:
+            LOGGER.error(f"Failed to get parent commit for {commit_hash} in repository at {repo_path}")
+            return ""
+
+    @staticmethod
+    def get_commit_timestamp(repo_path: str, commit_hash: str) -> str:
+        """Get commit timestamp in ISO format."""
+        command = ["git", f"--git-dir={repo_path}", "log", "-1", "--format=%aI", commit_hash]
+        success, output = subprocess_call(command=command)
+
+        if success and output.stdout:
+            return output.stdout.strip()
+        else:
+            LOGGER.error(f"Failed to get commit timestamp for {commit_hash} in repository at {repo_path}")
             return ""
