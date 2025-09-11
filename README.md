@@ -1,4 +1,4 @@
-# Vibecoding Version Control: Memov
+# VibeGit: Memov
 
 
 [![Twitter Follow](https://img.shields.io/twitter/follow/ssslvky?style=social)](https://x.com/ssslvky)
