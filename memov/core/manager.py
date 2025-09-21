@@ -2,10 +2,10 @@ import io
 import json
 import logging
 import os
-import traceback
-from enum import Enum
 import tarfile
+import traceback
 from collections import defaultdict
+from enum import Enum
 from pathlib import Path
 
 import pathspec
@@ -28,9 +28,13 @@ class MemStatus(Enum):
 
 
 class MemovManager:
-    def __init__(self, project_path: str) -> None:
+    def __init__(
+        self, project_path: str, default_name: str | None = None, default_email: str | None = None
+    ) -> None:
         """Initialize the MemovManager."""
         self.project_path = project_path
+        self.default_name = default_name
+        self.default_email = default_email
 
         # Memov config paths
         self.mem_root_path = os.path.join(self.project_path, ".mem")
@@ -514,6 +518,9 @@ class MemovManager:
         try:
             # Validate and fix branches before committing
             self._validate_and_fix_branches()
+
+            # Check the git user config(name and email)
+            GitManager.ensure_git_user_config(self.bare_repo_path, self.default_name, self.default_email)
 
             # Write blob to bare repo and get commit hash
             commit_hash = GitManager.write_blob_to_bare_repo(self.bare_repo_path, file_paths, commit_msg)
