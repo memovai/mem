@@ -264,3 +264,41 @@ class GitManager:
         else:
             # No note exists for this commit, which is normal
             return ""
+
+    @staticmethod
+    def ensure_git_user_config(
+        repo_path: str, default_name: str | None = None, default_email: str | None = None
+    ) -> None:
+        """
+        Ensure that the git user.name and user.email are set in the repository.
+
+        Args:
+            repo_path (str): Path to the Git repository.
+            default_name (str | None): Default name to set if user.name is not set.
+            default_email (str | None): Default email to set if user.email is not set. If None, use "memov" and "memov@example.com".
+        """
+        default_name = default_name or "memov"
+        default_email = default_email or "memov@example.com"
+
+        def set_git_config(key: str, value: str) -> bool:
+            """Set a git config key to a specific value, if not already set."""
+            check_command = ["git", f"--git-dir={repo_path}", "config", "--get", key]
+            success, output = subprocess_call(command=check_command)
+
+            if not success or not output.stdout.strip():
+                LOGGER.warning(f"Git {key} not set. Setting default value.")
+                command = ["git", f"--git-dir={repo_path}", "config", key, value]
+                success, _ = subprocess_call(command=command)
+                return success
+
+            return True
+
+        if set_git_config("user.name", default_name):
+            LOGGER.info(f"Set git user.name to '{default_name}' in repository at {repo_path}")
+        else:
+            LOGGER.error(f"Failed to set git user.name to '{default_name}' in repository at {repo_path}")
+
+        if set_git_config("user.email", default_email):
+            LOGGER.info(f"Set git user.email to '{default_email}' in repository at {repo_path}")
+        else:
+            LOGGER.error(f"Failed to set git user.email to '{default_email}' in repository at {repo_path}")
