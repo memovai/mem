@@ -1,260 +1,181 @@
-import argparse
 import logging
 import os
 import sys
+from typing import List, Optional
+
+import typer
+from typing_extensions import Annotated
 
 from memov.core.manager import MemovManager, MemStatus
+from memov.utils.logging_utils import setup_logging
+
+# Common type aliases
+LocOption = Annotated[
+    str, typer.Option("--loc", help="Specify the project directory path (default: current directory)")
+]
+PromptOption = Annotated[
+    Optional[str],
+    typer.Option("-p", "--prompt", help="Descriptive prompt explaining the purpose of this operation"),
+]
+ResponseOption = Annotated[
+    Optional[str],
+    typer.Option("-r", "--response", help="AI or user response to the prompt (optional documentation)"),
+]
+ByUserOption = Annotated[
+    bool, typer.Option("-u", "--by_user", help="Mark this operation as performed by a human user (vs AI)")
+]
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments for memov commands"""
-    parser = argparse.ArgumentParser(
-        description="memov - AI-assisted version control on top of Git", add_help=False
-    )
-    parser.add_argument("-h", "--help", action="store_true", help="Show help message")
-
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
-
-    # Init
-    init_parser = subparsers.add_parser("init", help="Initialize memov and git repository")
-    init_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-
-    # Track
-    track_parser = subparsers.add_parser("track", help="Track files in the project directory")
-    track_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    track_parser.add_argument(
-        "file_paths", type=str, nargs="*", help="List of file path to track (optional, default: all files)"
-    )
-    track_parser.add_argument(
-        "-p",
-        "--prompt",
-        type=str,
-        default=None,
-        required=False,
-        help="Prompt for the tracked files (optional)",
-    )
-    track_parser.add_argument(
-        "-r",
-        "--response",
-        type=str,
-        default=None,
-        required=False,
-        help="Optional response for the tracked files",
-    )
-    track_parser.add_argument(
-        "--by_user", "-u", action="store_true", help="Indicate that the files are tracked by the user"
-    )
-
-    # Snapshot
-    snap_parser = subparsers.add_parser("snap", help="Create a snapshot with auto-generated ID")
-    snap_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    snap_parser.add_argument(
-        "-p", "--prompt", type=str, default=None, required=False, help="Prompt for the snapshot (required)"
-    )
-    snap_parser.add_argument(
-        "-r", "--response", type=str, default=None, required=False, help="Optional response for the snapshot"
-    )
-    snap_parser.add_argument(
-        "--by_user", "-u", action="store_true", help="Indicate that the snapshot is created by the user"
-    )
-
-    # Rename
-    rename_parser = subparsers.add_parser("rename", help="Rename the files")
-    rename_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    rename_parser.add_argument("old_path", type=str, help="Old path of the file (required)")
-    rename_parser.add_argument("new_path", type=str, help="New path of the file (required)")
-    rename_parser.add_argument(
-        "-p",
-        "--prompt",
-        type=str,
-        default=None,
-        required=False,
-        help="Prompt for the renamed files (optional)",
-    )
-    rename_parser.add_argument(
-        "-r",
-        "--response",
-        type=str,
-        default=None,
-        required=False,
-        help="Optional response for the renamed files",
-    )
-    rename_parser.add_argument(
-        "--by_user", "-u", action="store_true", help="Indicate that the files are renamed by the user"
-    )
-
-    # Remove
-    remove_parser = subparsers.add_parser("remove", help="Remove the files")
-    remove_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    remove_parser.add_argument("file_path", type=str, help="Path of the file to remove (required)")
-    remove_parser.add_argument(
-        "-p",
-        "--prompt",
-        type=str,
-        default=None,
-        required=False,
-        help="Prompt for the removed files (optional)",
-    )
-    remove_parser.add_argument(
-        "-r",
-        "--response",
-        type=str,
-        default=None,
-        required=False,
-        help="Optional response for the removed files",
-    )
-    remove_parser.add_argument(
-        "--by_user", "-u", action="store_true", help="Indicate that the files are removed by the user"
-    )
-
-    # History
-    history_parser = subparsers.add_parser("history", help="Show history of snapshots")
-    history_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-
-    # Show
-    show_parser = subparsers.add_parser("show", help="Show details of a specific snapshot")
-    show_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    show_parser.add_argument("prompt_id", type=str, help="ID of the snapshot to show")
-
-    # Jump
-    jump_parser = subparsers.add_parser("jump", help="Jump to a specific snapshot")
-    jump_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    jump_parser.add_argument("prompt_id", type=str, help="ID of the snapshot to jump to")
-
-    # Status
-    status_parser = subparsers.add_parser(
-        "status", help="Show status of working directory compared to latest snapshot"
-    )
-    status_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-
-    # Amend
-    amend_parser = subparsers.add_parser("amend", help="Amend a commit's message with prompt/response")
-    amend_parser.add_argument(
-        "--loc", type=str, default=".", help="Specify the project directory path (default: current directory)"
-    )
-    amend_parser.add_argument("commit_hash", type=str, help="Commit hash to amend (required)")
-    amend_parser.add_argument("-p", "--prompt", type=str, default=None, help="Prompt to add (optional)")
-    amend_parser.add_argument("-r", "--response", type=str, default=None, help="Response to add (optional)")
-    amend_parser.add_argument(
-        "-u", "--by_user", action="store_true", help="Indicate the source is user (default: AI)"
-    )
-
-    subparsers = {
-        "init": init_parser,
-        "track": track_parser,
-        "snap": snap_parser,
-        "rename": rename_parser,
-        "remove": remove_parser,
-        "history": history_parser,
-        "show": show_parser,
-        "jump": jump_parser,
-        "status": status_parser,
-        "amend": amend_parser,
-    }
-
-    args = parser.parse_args()
-
-    if args.help:
-        print_usage(parser, subparsers)
-        sys.exit(0)
-
-    if not args.command:
-        print_usage(parser, subparsers)
-        sys.exit(1)
-
-    return args
+# Create Typer app
+app = typer.Typer(
+    name="memov",
+    help="memov - AI-assisted version control on top of Git. Track, snapshot, and manage your project evolution.",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    add_completion=False,  # Disable shell completion for now
+)
 
 
-def print_usage(parser: argparse.ArgumentParser, subparsers: dict[str, argparse.ArgumentParser]) -> None:
-    print("=== Main Help ===")
-    parser.print_help()
-
-    for name, subparser in subparsers.items():
-        print(f"\n=== Subcommand: {name} ===")
-        subparser.print_help()
-
-
-def handle_command() -> None:
-    """Handle memov commands"""
-    args = parse_args()
-
-    command = args.command
-    args.loc = os.path.abspath(args.loc)
-
-    # Skip mem check for init command
-    skip_mem_check = command == "init"
-    manager = MemovManager(project_path=args.loc)
-    if manager.check(only_basic_check=skip_mem_check) is not MemStatus.SUCCESS:
-        sys.exit(1)
-
+def get_manager(loc: str, skip_mem_check: bool = False) -> MemovManager:
+    """Get MemovManager instance, and config the logging."""
     # Configure logging
-    if not skip_mem_check:
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG)
+    setup_logging(loc)
 
-        # Create a file handler for debug messages
-        log_path = os.path.join(args.loc, ".mem", "mem.log")
-        file_handler = logging.FileHandler(log_path, mode="a")
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(name)s:%(lineno)s - %(message)s")
-        )
-        file_handler.setLevel(logging.DEBUG)
+    # Validate and return MemovManager instance
+    loc = os.path.abspath(loc)
+    manager = MemovManager(project_path=loc)
 
-        # Create a console handler for info messages
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(logging.Formatter("%(message)s"))
-        console_handler.setLevel(logging.INFO)
+    status = manager.check(only_basic_check=skip_mem_check)
+    if status is not MemStatus.SUCCESS:
+        sys.exit(1)
 
-        # Add handlers to the root logger
-        root_logger.handlers.clear()
-        root_logger.addHandler(console_handler)
-        root_logger.addHandler(file_handler)
+    return manager
 
-    if command == "init":
-        manager.init()
-    elif command == "track":
-        manager.track(args.file_paths, args.prompt, args.response, args.by_user)
-    elif command == "snap":
-        manager.snapshot(args.prompt, args.response, args.by_user)
-    elif command == "rename":
-        manager.rename(args.old_path, args.new_path, args.prompt, args.response, args.by_user)
-    elif command == "remove":
-        manager.remove(args.file_path, args.prompt, args.response, args.by_user)
-    elif command == "history":
-        manager.history()
-    elif command == "show":
-        manager.show(args.prompt_id)
-    elif command == "jump":
-        manager.jump(args.prompt_id)
-    elif command == "status":
-        manager.status()
-    elif command == "amend":
-        manager.amend_commit_message(args.commit_hash, args.prompt, args.response, args.by_user)
-    else:
-        raise ValueError(f"Unknown command: {command}")
+
+@app.command()
+def init(loc: LocOption = ".") -> None:
+    """Initialize memov repository in the specified location."""
+    manager = get_manager(loc, skip_mem_check=True)
+    manager.init()
+
+
+@app.command()
+def track(
+    loc: LocOption = ".",
+    file_paths: Annotated[Optional[List[str]], typer.Argument(help="List of file paths to track")] = None,
+    prompt: PromptOption = None,
+    response: ResponseOption = None,
+    by_user: ByUserOption = False,
+) -> None:
+    """Track files in the project directory for version control."""
+    manager = get_manager(loc)
+    manager.track(file_paths, prompt, response, by_user)
+
+
+@app.command()
+def snap(
+    loc: LocOption = ".",
+    prompt: PromptOption = None,
+    response: ResponseOption = None,
+    by_user: ByUserOption = False,
+) -> None:
+    """Create a snapshot of the current project state."""
+    manager = get_manager(loc)
+    manager.snapshot(prompt, response, by_user)
+
+
+@app.command()
+def rename(
+    old_path: Annotated[str, typer.Argument(help="Current path of the file to rename")],
+    new_path: Annotated[str, typer.Argument(help="New path for the file")],
+    loc: LocOption = ".",
+    prompt: PromptOption = None,
+    response: ResponseOption = None,
+    by_user: ByUserOption = False,
+) -> None:
+    """Rename a tracked file and record the operation."""
+    manager = get_manager(loc)
+    manager.rename(old_path, new_path, prompt, response, by_user)
+
+
+@app.command()
+def remove(
+    file_path: Annotated[str, typer.Argument(help="Path of the file to remove from tracking")],
+    loc: LocOption = ".",
+    prompt: PromptOption = None,
+    response: ResponseOption = None,
+    by_user: ByUserOption = False,
+) -> None:
+    """Remove a tracked file from the project and record the operation."""
+    manager = get_manager(loc)
+    manager.remove(file_path, prompt, response, by_user)
+
+
+@app.command()
+def history(loc: LocOption = ".") -> None:
+    """Show history of snapshots and operations."""
+    manager = get_manager(loc)
+    manager.history()
+
+
+@app.command()
+def show(
+    snapshot_id: Annotated[str, typer.Argument(help="ID/hash of the snapshot to display")],
+    loc: LocOption = ".",
+) -> None:
+    """Show detailed information about a specific snapshot."""
+    manager = get_manager(loc)
+    manager.show(snapshot_id)
+
+
+@app.command()
+def jump(
+    snapshot_id: Annotated[str, typer.Argument(help="ID/hash of the snapshot to jump to")],
+    loc: LocOption = ".",
+) -> None:
+    """Jump to a specific snapshot, restoring the project state."""
+    manager = get_manager(loc)
+    manager.jump(snapshot_id)
+
+
+@app.command()
+def status(loc: LocOption = ".") -> None:
+    """Show status of working directory compared to the latest snapshot."""
+    manager = get_manager(loc)
+    manager.status()
+
+
+@app.command()
+def amend(
+    commit_hash: Annotated[str, typer.Argument(help="Commit hash to add notes to")],
+    loc: LocOption = ".",
+    prompt: PromptOption = None,
+    response: ResponseOption = None,
+    by_user: ByUserOption = False,
+) -> None:
+    """Add or update prompt/response notes for a specific commit."""
+    manager = get_manager(loc)
+    manager.amend_commit_message(commit_hash, prompt, response, by_user)
+
+
+@app.command()
+def version() -> None:
+    """Show version information."""
+    manager = get_manager(loc=".", skip_mem_check=True)
+    manager.version()
 
 
 def main() -> None:
-    """Main entry point for the memov command"""
-    handle_command()
+    """Main entry point for the memov command line interface."""
+    try:
+        app()
+    except KeyboardInterrupt:
+        logging.info("\nOperation cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        logging.debug("Full traceback:", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

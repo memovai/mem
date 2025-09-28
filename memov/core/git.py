@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 from memov.utils.string_utils import clean_windows_git_lstree_output
 
@@ -11,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 def subprocess_call(
     command: list[str], input: str = None, text: bool = True
-) -> tuple[bool, subprocess.CompletedProcess | None]:
+) -> tuple[bool, Optional[subprocess.CompletedProcess]]:
     """Run a subprocess command and handle errors."""
     try:
         output = subprocess.run(
@@ -216,7 +217,7 @@ class GitManager:
             return ""
 
     @staticmethod
-    def git_archive(bare_repo: str, commit_id: str) -> bytes | None:
+    def git_archive(bare_repo: str, commit_id: str) -> Optional[bytes]:
         """Export the content of a specific commit to a tar archive."""
         command = ["git", f"--git-dir={bare_repo}", "archive", "--format=tar", commit_id]
         success, output = subprocess_call(command=command, text=False)
@@ -267,7 +268,7 @@ class GitManager:
 
     @staticmethod
     def ensure_git_user_config(
-        repo_path: str, default_name: str | None = None, default_email: str | None = None
+        repo_path: str, default_name: Optional[str] = None, default_email: Optional[str] = None
     ) -> None:
         """
         Ensure that the git user.name and user.email are set in the repository.

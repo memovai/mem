@@ -7,6 +7,7 @@ import traceback
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import pathspec
 
@@ -29,7 +30,7 @@ class MemStatus(Enum):
 
 class MemovManager:
     def __init__(
-        self, project_path: str, default_name: str | None = None, default_email: str | None = None
+        self, project_path: str, default_name: Optional[str] = None, default_email: Optional[str] = None
     ) -> None:
         """Initialize the MemovManager."""
         self.project_path = project_path
@@ -63,6 +64,20 @@ class MemovManager:
 
         return MemStatus.SUCCESS
 
+    def version(self) -> str:
+        """Show version information."""
+        # Read version from pyproject.toml or package metadata
+        import importlib.metadata
+
+        try:
+            version = importlib.metadata.version("memov")
+            LOGGER.info(f"memov version {version}")
+        except importlib.metadata.PackageNotFoundError:
+            version = "unknown"
+            LOGGER.info("memov version unknown (development)")
+
+        return version
+
     def init(self) -> MemStatus:
         """Initialize a memov repo if it doesn't exist."""
         try:
@@ -85,8 +100,8 @@ class MemovManager:
     def track(
         self,
         file_paths: list[str],
-        prompt: str | None = None,
-        response: str | None = None,
+        prompt: Optional[str] = None,
+        response: Optional[str] = None,
         by_user: bool = False,
     ) -> MemStatus:
         """Track files in the memov repo, generating a commit to record the operation."""
@@ -148,7 +163,7 @@ class MemovManager:
             return MemStatus.UNKNOWN_ERROR
 
     def snapshot(
-        self, prompt: str | None = None, response: str | None = None, by_user: bool = False
+        self, prompt: Optional[str] = None, response: Optional[str] = None, by_user: bool = False
     ) -> MemStatus:
         """Create a snapshot of the current project state in the memov repo, generating a commit to record the operation."""
         try:
@@ -195,8 +210,8 @@ class MemovManager:
         self,
         old_file_path: str,
         new_file_path: str,
-        prompt: str | None = None,
-        response: str | None = None,
+        prompt: Optional[str] = None,
+        response: Optional[str] = None,
         by_user: bool = False,
     ) -> None:
         """Rename a tracked file in the memov repo, and generate a commit to record the operation. Supports branches."""
@@ -250,7 +265,11 @@ class MemovManager:
             LOGGER.error(f"Error renaming file in memov repo: {e}")
 
     def remove(
-        self, file_path: str, prompt: str | None = None, response: str | None = None, by_user: bool = False
+        self,
+        file_path: str,
+        prompt: Optional[str] = None,
+        response: Optional[str] = None,
+        by_user: bool = False,
     ) -> None:
         """Remove a tracked file from the memov repo, and generate a commit to record the operation."""
         try:
@@ -487,7 +506,11 @@ class MemovManager:
             return MemStatus.UNKNOWN_ERROR, {}
 
     def amend_commit_message(
-        self, commit_hash: str, prompt: str | None = None, response: str | None = None, by_user: bool = False
+        self,
+        commit_hash: str,
+        prompt: Optional[str] = None,
+        response: Optional[str] = None,
+        by_user: bool = False,
     ) -> None:
         """
         Attach prompt/response to the commit as a git note (does not rewrite history).
@@ -534,7 +557,10 @@ class MemovManager:
             return ""
 
     def _filter_new_files(
-        self, file_paths: list[str], tracked_file_rel_paths: list[str] | None, exclude_memignore: bool = True
+        self,
+        file_paths: list[str],
+        tracked_file_rel_paths: Optional[list[str]] = None,
+        exclude_memignore: bool = True,
     ) -> list[tuple[str, str]]:
         """Filter out files that are already tracked or should be ignored.
 
@@ -602,7 +628,7 @@ class MemovManager:
 
         return new_files
 
-    def _load_branches(self) -> dict | None:
+    def _load_branches(self) -> Optional[dict]:
         """Load branches configuration from the branches config file."""
         if not os.path.exists(self.branches_config_path):
             return None

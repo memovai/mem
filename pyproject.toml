@@ -1,6 +1,6 @@
 [project]
 name = "memov"
-version = "0.0.2"
+version = "0.0.3"
 description = "Vibecoding Version Control"
 authors = [
     {name = "crispyberry",email = "ssslvky@gmail.com"},
@@ -9,7 +9,8 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "pathspec>=0.11.0"
+    "pathspec>=0.11.0",
+    "typer (>=0.19.2,<0.20.0)",
 ]
 
 
